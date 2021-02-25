@@ -267,11 +267,31 @@ class ComputePhysics(object):
         #with parallel_computation():
         for i in trange(len(self._K), desc="Calc spectrum of all samples"):
 
-            B = self._B[i]
-            K = self._K[i]
-            gc = self._gc[i]
-            gmx = self._gmx[i]
-            index = self._index[i]
+            if type(self._B) == float:
+                B = self._B
+            else:
+                B = self._B[i]
+
+            if type(self._K) == float:
+                K = self._K
+            else:
+                K = self._K[i]
+
+            if type(self._gc) == float:
+                gc = self._gc
+            else:
+                gc = self._gc[i]
+
+            if type(self._gmx) == float:
+                gmx = self._gmx
+            else:
+                gmx = self._gmx[i]
+
+            if type(self._index) == float:
+                index = self._index
+            else:
+                index = self._index[i]
+
             self._synch.B.value = B
             self._synch.K.value = K
             self._synch.gamma_cool.value = gc
