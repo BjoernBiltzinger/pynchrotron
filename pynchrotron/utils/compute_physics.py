@@ -171,52 +171,72 @@ class ComputePhysics(object):
         # Get the samples for all parameters from the analysis result
         # object. For this we have to check the order of the
         # parameters in the analysis result object
-        #
-        mask = np.zeros(5, dtype=int)
+
+        if self._num_samples == -1 or \
+           self._num_samples > self._result.samples.shape[1]:
+
+            sample_mask = np.ones(self._result.samples.shape[1],
+                                  type=bool)
+        else:
+            sample_mask = np.zeros(self._result.samples.shape[1], dtype=bool)
+            sample_mask[:self._num_samples] = True
+            np.random.shuffle(sample_mask)
 
         B_found = False
         K_found = False
         index_found = False
         gc_found = False
         gmx_found = False
-        for i, p in enumerate(self._result._free_parameters.keys()):
-            if p[-1:]=="B":
+
+        # check for free parameters
+        params = self._result.optimized_model.parameters
+        num_free = 0
+        for p in params.keys():
+            if p[-1:] == "B":
                 assert not B_found, "Bug: Two B parameters"
-                mask[1] = i
+                if params[p].free:
+                    self._B = self._result.samples[num_free, sample_mask]
+                else:
+                    self._B = params[p].value
                 B_found = True
 
-            if p[-1:]=="K":
+            if p[-1:] == "K":
                 assert not K_found, "Bug: Two B parameters"
-                mask[0] = i
+                if params[p].free:
+                    self._K = self._result.samples[num_free, sample_mask]
+                else:
+                    self._K = params[p].value
                 K_found = True
 
-            if p[-5:]=="index":
+            if p[-5:] == "index":
                 assert not index_found, "Bug: Two B parameters"
-                mask[2] = i
+                if params[p].free:
+                    self._index = self._result.samples[num_free, sample_mask]
+                else:
+                    self._index = params[p].value
                 index_found = True
 
-            if p[-10:]=="gamma_cool":
+            if p[-10:] == "gamma_cool":
                 assert not gc_found, "Bug: Two B parameters"
-                mask[3] = i
+                if params[p].free:
+                    self._gc = self._result.samples[num_free, sample_mask]
+                else:
+                    self._gc = params[p].value
                 gc_found = True
 
-            if p[-9:]=="gamma_max":
+            if p[-9:] == "gamma_max":
                 assert not gmx_found, "Bug: Two B parameters"
-                mask[4] = i
+                if params[p].free:
+                    self._gmx = self._result.samples[num_free, sample_mask]
+                else:
+                    self._gmx = params[p].value
                 gmx_found = True
+
+            if params[p].free:
+                num_free += 1
 
         assert B_found*K_found*index_found*gc_found*gmx_found, \
             "At least one of the needed parameters was not in the analysis result"
-
-        if self._num_samples==-1 or self._num_samples>self._result.samples.shape[1]:
-            self._K, self._B, self._index, self._gc, self._gmx = \
-                self._result.samples[mask]
-        else:
-            sample_mask = np.zeros(self._result.samples.shape[1], dtype=bool)
-            sample_mask[:self._num_samples] = True
-            np.random.shuffle(sample_mask)
-            self._K, self._B, self._index, self._gc, self._gmx = \
-                self._result.samples[mask][:,sample_mask]
 
         self._nu_c  = (_characteristic_synchrotron_energy(self._gc,
                                                           self._B,
