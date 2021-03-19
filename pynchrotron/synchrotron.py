@@ -4,6 +4,7 @@ import numpy as np
 from pynchrotron.synchrotron_kernel import (
     synchrotron_kernel,
     compute_synchtron_matrix,
+    compute_synchtron_matrix2
 )
 
 
@@ -62,10 +63,11 @@ def cool_and_radiate(
             source_eval[j] = ne * np.power(gamma[j], -index) * (pm1) * 1.0 / denom
 
     # precompute a matrix for each photon energy and electron grid point
-            
+    # takes ~ 500 mus for 100 input energies times 300 gamma2
     synchrotron_matrix = compute_synchtron_matrix(
         energy, gamma2, B, bulk_lorentz_factor, n_photon_energies, n_grid_points
     )
+    #synchrotron_matrix = np.ones((n_photon_energies, n_grid_points))
 
 
     # allocate the Chang and Cooper arrays
@@ -93,36 +95,40 @@ def cool_and_radiate(
         
     fgammatp1 = np.zeros(n_grid_points)
     val = np.zeros(n_grid_points-1)
-    for _ in range(0, steps + 1):
 
+    precalc1 = DT * cool * gamma[1] * gamma[1]/delta_gamma2
+    precalc2 =  (DT * cool * gamma[n_grid_points - 1] * gamma[n_grid_points - 1])/ delta_gamma1
+
+    # this loop is the bootleneck for gamma_max>>gamma_cool (when the calc. is slow)
+    # for gamma_max/gamma_cool = 1e5 takes about 99.6 % of the runtime
+    for _ in range(0, steps + 1):
 
         # set the end point
         
         fgammatp1[n_grid_points - 1] = fgamma[n_grid_points - 1] / (
-            1.0
-            + (DT * cool * gamma[n_grid_points - 1] * gamma[n_grid_points - 1])
-            / delta_gamma1
+            1.0 + precalc2
         )
 
-        # back sweep through the grid 
+        # back sweep through the grid
         
         for j in range(n_grid_points - 2, 0, -1):
 
             fgammatp1[j] = (fgamma[j] + source_eval[j] + V3[j] * fgammatp1[j + 1]) / V2[
                 j
             ]
-            fgamma[j] = fgammatp1[j]
 
         # set the end point
             
         fgammatp1[0] = (
-            fgamma[0] + (DT * cool * gamma[1] * gamma[1] * fgammatp1[1]) / delta_gamma2
+            fgamma[0] + (precalc1 * fgammatp1[1])
         )
-        fgamma[0] = fgammatp1[0]
-        fgamma[-1] = fgammatp1[-1]
+
+        fgamma = fgammatp1
 
 
-        val += fgamma[1:]*(gamma[1:]-gamma[:-1])
+        val += fgamma[1:]
+
+    val*=(gamma[1:]-gamma[:-1])
 
     emission = np.dot(synchrotron_matrix[:,1:], val)/(2.0*energy)
 
